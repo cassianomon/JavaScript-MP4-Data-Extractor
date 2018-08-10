@@ -1,0 +1,1 @@
+Open the index.html on a browser, then select the mp4 file inside the folder

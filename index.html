@@ -1,0 +1,176 @@
+<!--
+    Author: Cassiano Guareschi Montanari
+    Contact: cassianomontanari@gmail.com
+    GitHub: github.com/cassianomon
+ -->
+
+
+<!DOCTYPE html>
+<html lang="en">
+
+    <head>
+        <meta charset="UTF-8">
+        <title>reading a mp4 file</title>
+
+        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+
+        <style>
+            ul#mdatImages {
+                margin-top: 10px;
+                max-width: 100%;
+                padding: 5px;
+                background: #E4E4E4;
+            }
+            ul#mdatImages li {
+                list-style-type: none;
+                margin-bottom: 10px;
+                border: 5px solid #282828;
+            }
+            ul#mdatImages li img {
+                max-width: 100%;
+            }
+
+        </style>
+    </head>
+
+    <body>
+        <div class="container">
+            <div class="row">
+                <div class="col-md-12">
+                    <h4>Hello castLabs!</h4>
+                    <h4>Select the mp4 file on the folder 'files':</h4>
+                    <input type='file' onchange='openFile(event)'>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-sm-12">
+                    <ul id="mdatImages">
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </body>
+
+    <script>
+        const boxNames = ['moof', 'mfhd', 'traf', 'tfhd', 'trun', 'uuid', 'mdat'];
+        const byteSize = 8;
+        let boxes = [];
+        let currentDate = new Date();
+
+        let openFile = function (event) {
+
+            let file = event.target.files[0];
+            let reader = new FileReader();
+
+            let files = [];
+
+            if (file) {
+                console.log('Successfully loaded file ' + event.srcElement.baseURI);
+                reader.readAsArrayBuffer(file);
+            }
+
+            reader.addEventListener("load", function () {
+                let resultArray = new Uint8Array(reader.result);
+
+                let filteredArray = [];
+
+                if (resultArray.length > 0) {
+                    filteredArray = chunkArray(resultArray);
+                }
+
+                for (let i = 0; i < filteredArray.length; i++) {
+                    let sub = filteredArray[i];
+
+                    let boxName = '';
+                    let boxSize = 0;
+
+                    sub.forEach(function (element) {
+                        boxName += String.fromCharCode(element);
+                    });
+
+                    if (boxNames.indexOf(boxName) !== -1) {
+                        boxSize = parseInt(filteredArray[i - 1].join(''));
+
+                        boxes.push({
+                            name: boxName,
+                            size: boxSize
+                        });
+                    }
+                }
+
+                findMdatAndContent(resultArray);
+
+                for (let i = 0; i < boxes.length; i++) {
+                    let element = boxes[i];
+                    console.log('Found box of type ' + element.name + ' and size ' + element.size);
+                    if (element.content) {
+                        console.log('Content of ' + element.name + ' box is: ' + element.content);
+                    }
+                }
+
+            }, false);
+        };
+
+        function findMdatAndContent(arr) {
+            let result;
+            let string = '';
+            let name;
+
+            for (let i = 0; i < arr.length; i++) {
+                string += String.fromCharCode(arr[i]);
+            }
+
+            if (string.indexOf('mdat') !== -1) {
+                let index = string.indexOf('mdat') - 4;
+                // the -4 is because of 'mdat' file name, so I can get the index of 'm'.
+
+                let mdatSize = arr.length - index
+
+                let content = string.slice(index + byteSize, string.length - 1);
+
+                boxes.push({
+                    name: 'mdat',
+                    size: mdatSize,
+                    content: content
+                });
+
+                let images = [];
+                let parser = new DOMParser();
+                xml = parser.parseFromString(content, 'text/xml');
+
+
+                let tags = xml.getElementsByTagName('smpte:image').length;
+
+                for (let t = 0; t < tags; t++) {
+                    let img = xml.getElementsByTagName('smpte:image')[t].childNodes[0].nodeValue;
+                    images.push(img);
+                }
+
+                if (images.length > 0) {
+                    let ul = document.getElementById('mdatImages');
+                    images.forEach(function (baseStr64) {
+                        let li = document.createElement('li');
+                        let imgEl = document.createElement('img');
+                        imgEl.setAttribute('src', "data:image/jpg;base64," + baseStr64);
+                        li.appendChild(imgEl);
+                        ul.appendChild(li);
+                    });
+                }
+
+            }
+
+            return;
+        }
+
+        function chunkArray(arr) {
+            let i, j, chunk = 4;
+            let result = [];
+
+            for (i = 0; i < arr.length; i += chunk) {
+                result.push(arr.slice(i, i + chunk));
+            }
+            return result;
+        }
+    </script>
+
+</html>
